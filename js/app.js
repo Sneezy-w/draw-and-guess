@@ -19,7 +19,7 @@ new Vue({
     canvas: null,
     ctx: null,
     isDrawingNow: false,
-    timer: 60,
+    timer: 0,
     timerInterval: null,
     scores: {},
     //showCanvas: false
@@ -134,9 +134,7 @@ new Vue({
         })
         .then(() => {
           this.currentRoom = null;
-          this.$refs.canvas
-            .getContext("2d")
-            .clearRect(0, 0, this.canvas.width, this.canvas.height);
+
         })
         .catch((error) => {
           console.error("Error leaving room:", error);
@@ -158,17 +156,19 @@ new Vue({
       const randomIndex = Math.floor(
         Math.random() * this.currentRoomPlayers.length
       );
-      console.log(this.currentRoomPlayers);
+      //console.log(this.currentRoomPlayers);
       const drawerUid = this.currentRoomPlayers[randomIndex].uid;
       roomRef
         .update({
           status: "playing",
           currentWord: word,
           drawerUid: drawerUid,
+          timer: 60,
+          drawingData: null,
         })
         .then(() => {
           //this.initCanvas();
-          this.startTimer();
+          //this.startTimer();
         });
     },
 
@@ -190,9 +190,9 @@ new Vue({
 
     initCanvas() {
       this.$nextTick(() => {
-        console.log("initCanvas");
+        //console.log("initCanvas");
         this.canvas = this.$refs.canvas;
-        console.log(this.canvas);
+        //console.log(this.canvas);
         if (this.canvas) {
           this.ctx = this.canvas.getContext("2d");
           // Update canvas width and height
@@ -206,22 +206,22 @@ new Vue({
     },
 
     startDrawing(event) {
-      if (!this.isDrawing) return;
-      console.log("startDrawing");
+      if (!this.isDrawing || this.gameState !== 'playing') return;
+      //console.log("startDrawing");
       this.isDrawingNow = true;
       this.ctx.beginPath();
       this.ctx.moveTo(event.offsetX, event.offsetY);
     },
 
     draw(event) {
-      if (!this.isDrawing || !this.isDrawingNow) return;
+      if (!this.isDrawing || !this.isDrawingNow || this.gameState !== 'playing') return;
       this.ctx.lineTo(event.offsetX, event.offsetY);
       this.ctx.stroke();
       this.saveDrawingData();
     },
 
     stopDrawing() {
-      if (!this.isDrawing) return;
+      if (!this.isDrawing || this.gameState !== 'playing') return;
       this.isDrawingNow = false;
       this.ctx.closePath();
       this.saveDrawingData();
@@ -283,14 +283,18 @@ new Vue({
       }
     },
 
+    timerFunction() {
+      if (this.timer > 0) {
+        this.timer--;
+        const roomRef = firebase.database().ref(`rooms/${this.currentRoom}`);
+        roomRef.update({ timer: this.timer });
+      } else {
+        this.endRound();
+      }
+    },
     startTimer() {
       this.timer = 60;
-      this.timerInterval = setInterval(() => {
-        this.timer--;
-        if (this.timer <= 0) {
-          this.endRound();
-        }
-      }, 1000);
+      this.timerInterval = setInterval(this.timerFunction, 1000);
     },
 
     endRound() {
@@ -359,6 +363,7 @@ new Vue({
                 this.gameState = currentRoomData.status;
                 this.currentWord = currentRoomData.currentWord;
                 this.isDrawing = currentRoomData.drawerUid === this.user.uid;
+                this.drawerUid = currentRoomData.drawerUid;
                 this.isReady =
                   currentRoomData.players[this.user.uid]?.ready || false;
                 this.currentRoomPlayers =
@@ -368,6 +373,18 @@ new Vue({
                     ready: currentRoomData.players[uid].ready,
                   })) || [];
                 this.scores = currentRoomData.scores || {};
+                if (currentRoomData.status === 'playing') {
+                  this.timer = currentRoomData.timer;
+                  this.$nextTick(() => {
+                    if (!this.timerInterval) {
+                      console.log("timerInterval");
+                      //this.timer = currentRoomData.timer;
+                      this.timerInterval = setInterval(this.timerFunction, 1000);
+                    }
+
+                  });
+                }
+
 
                 // if (this.gameState === 'playing' && this.isDrawing) {
                 //     this.startTimer();
@@ -401,7 +418,7 @@ new Vue({
         this.currentRoom = null;
       }
 
-      this.initCanvas();
+      //this.initCanvas();
     });
   },
   mounted() {
@@ -417,8 +434,36 @@ new Vue({
         this.initCanvas();
         //this.loadDrawingData();
       } else if (!newRoom && oldRoom) {
-        this.currentRoom = null;
+        //this.currentRoom = null;
+        clearInterval(this.timerInterval);
       }
     },
+    gameState(newState, oldState) {
+      if (newState && newState !== oldState) {
+        if (this.isDrawing) {
+          if (newState === "roundEnd") {
+            clearInterval(this.timerInterval);
+            //setTimeout(() => this.startNewRound(), 5000);
+          }
+        }
+
+        if (newState === "playing") {
+          //this.startTimer();
+          this.$refs.canvas
+            ?.getContext("2d")
+            ?.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+      }
+    },
+    // timer(newTimer, oldTimer) {
+    //   if (newTimer && newTimer !== oldTimer) {
+    //     if (!this.isDrawing) {
+    //       if (newTimer === 0) {
+    //         this.endRound();
+    //       }
+    //     }
+    //   }
+    // },
   },
 });
