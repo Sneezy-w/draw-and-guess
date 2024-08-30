@@ -123,6 +123,7 @@ new Vue({
         .transaction((room) => {
           if (room && room.players && room.players[this.user.uid]) {
             delete room.players[this.user.uid];
+            room.scores = {};
             if (Object.keys(room.players).length === 0) {
               return null;
             } else {
@@ -134,7 +135,7 @@ new Vue({
         })
         .then(() => {
           this.currentRoom = null;
-
+          this.scores = {};
         })
         .catch((error) => {
           console.error("Error leaving room:", error);
@@ -159,9 +160,9 @@ new Vue({
       //console.log(this.currentRoomPlayers);
 
       const drawerUid = this.currentRoomPlayers[randomIndex].uid;
-      this.scores = this.scores || {};
+      let scores = {};
       this.currentRoomPlayers.forEach(player => {
-        this.scores[player.uid] = { score: 0, name: player.name };
+        scores[player.uid] = { score: 0, name: player.name };
       });
       roomRef
         .update({
@@ -170,7 +171,7 @@ new Vue({
           drawerUid: drawerUid,
           timer: 60,
           drawingData: null,
-          scores: this.scores
+          scores: scores
         })
         .then(() => {
           //this.initCanvas();
