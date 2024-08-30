@@ -157,7 +157,12 @@ new Vue({
         Math.random() * this.currentRoomPlayers.length
       );
       //console.log(this.currentRoomPlayers);
+
       const drawerUid = this.currentRoomPlayers[randomIndex].uid;
+      this.scores = this.scores || {};
+      this.currentRoomPlayers.forEach(player => {
+        this.scores[player.uid] = { score: 0, name: player.name };
+      });
       roomRef
         .update({
           status: "playing",
@@ -165,6 +170,7 @@ new Vue({
           drawerUid: drawerUid,
           timer: 60,
           drawingData: null,
+          scores: this.scores
         })
         .then(() => {
           //this.initCanvas();
@@ -264,7 +270,7 @@ new Vue({
           guess: this.guess,
         })
         .then(() => {
-          this.checkGuess({ uid: this.user.uid, guess: this.guess });
+          this.checkGuess({ uid: this.user.uid, guess: this.guess, name: this.user.displayName });
           this.guess = "";
         });
     },
@@ -275,7 +281,7 @@ new Vue({
         roomRef
           .update({ status: "roundEnd", winner: guessData.uid })
           .then(() => {
-            this.updateScores(guessData.uid);
+            this.updateScores(guessData.uid, guessData.name);
             this.endRound();
           });
       } else {
@@ -303,14 +309,14 @@ new Vue({
       roomRef.update({ status: "roundEnd" });
     },
 
-    updateScores(winnerUid) {
+    updateScores(winnerUid, winnerName) {
       const roomRef = firebase
         .database()
         .ref(`rooms/${this.currentRoom}/scores`);
       roomRef.transaction((scores) => {
         if (!scores) scores = {};
-        if (!scores[winnerUid]) scores[winnerUid] = 0;
-        scores[winnerUid]++;
+        if (!scores[winnerUid]) scores[winnerUid] = { score: 0, name: winnerName };
+        scores[winnerUid].score++;
         return scores;
       });
     },
@@ -324,8 +330,11 @@ new Vue({
         currentWord: newWord,
         drawerUid: newDrawerUid,
         drawingData: null,
+        timer: 60,
+
+
       });
-      this.startTimer();
+      //this.startTimer();
     },
 
     getNextDrawer() {
@@ -376,7 +385,7 @@ new Vue({
                 if (currentRoomData.status === 'playing') {
                   this.timer = currentRoomData.timer;
                   this.$nextTick(() => {
-                    if (!this.timerInterval) {
+                    if (!this.timerInterval && currentRoomData.drawerUid === this.user.uid) {
                       console.log("timerInterval");
                       //this.timer = currentRoomData.timer;
                       this.timerInterval = setInterval(this.timerFunction, 1000);
