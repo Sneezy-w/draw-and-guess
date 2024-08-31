@@ -12,9 +12,35 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
+        }
+
+        .spinner-container {
+            display: flex;
+            justify-content: center;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
@@ -82,17 +108,6 @@
                                 </p>
                             </div>
                             <div class="space-x-2">
-                                <button v-if="(gameState === 'waiting' || gameState === 'full') && !isReady"
-                                    @click="toggleReady"
-                                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
-                                    Ready
-                                </button>
-                                <button
-                                    v-if="isReady && currentRoom && rooms.find(r => r.id === currentRoom) && gameState === 'full' && currentRoomPlayers.every(player => player.ready)"
-                                    @click="startGame"
-                                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg mt-2 ml-2 transition duration-300 ease-in-out">
-                                    Start Game
-                                </button>
                                 <button @click="leaveRoom"
                                     class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
                                     Leave Room
@@ -100,13 +115,61 @@
                             </div>
                         </div>
                     </div>
-
                     <div class="flex space-x-6">
                         <div class="w-3/4">
-                            <canvas ref="canvas" @mousedown="startDrawing" @mousemove="draw" @mouseup="stopDrawing"
-                                v-show="currentRoom && (gameState === 'playing' || gameState === 'roundEnd')"
-                                @mouseleave="stopDrawing"
-                                class="border-4 border-blue-300 rounded-lg w-full max-w-[800px] mx-auto shadow-lg"></canvas>
+                            <div class="canvas-container relative" style="width: 100%; height: 600px;">
+                                <div class="drawing-tools flex space-x-2 mb-2">
+                                    <div class="color-palette flex space-x-2">
+                                        <div v-for="color in colorPalette" :key="color" @click="setColor(color)"
+                                            :style="{ backgroundColor: color }"
+                                            class="w-8 h-8 rounded-full cursor-pointer border-2 transition-all duration-200"
+                                            :class="{ 'border-gray-400 scale-110': currentColor === color, 'border-transparent': currentColor !== color }">
+                                        </div>
+                                        <input type="color" v-model="currentColor" @input="setColor(currentColor)"
+                                            class="w-8 h-8 rounded-full cursor-pointer">
+                                    </div>
+                                    <select v-model="currentSize" class="border rounded p-1">
+                                        <option value="2">Small</option>
+                                        <option value="5">Medium</option>
+                                        <option value="10">Large</option>
+                                    </select>
+                                    <button @click="setEraser" class="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">
+                                        Eraser
+                                    </button>
+                                    <button @click="clearCanvas"
+                                        class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">
+                                        Clear
+                                    </button>
+                                </div>
+                                <canvas ref="canvas" @mousedown="startDrawing" @mousemove="draw" @mouseup="stopDrawing"
+                                    v-show="currentRoom && (gameState === 'playing' || gameState === 'roundEnd')"
+                                    @mouseleave="stopDrawing"
+                                    class="border-4 border-blue-300 rounded-lg w-full max-w-[800px] mx-auto shadow-lg">
+                                </canvas>
+                                <div
+                                    class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                                    <button v-if="(gameState === 'waiting' || gameState === 'full') && !isReady"
+                                        @click="toggleReady"
+                                        class="w-32 h-32 rounded-full bg-gradient-to-r from-green-400 to-green-600 text-white font-bold text-2xl transition duration-300 ease-in-out mb-6 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300">
+                                        Ready
+                                    </button>
+                                    <button
+                                        v-if="isReady && currentRoom && rooms.find(r => r.id === currentRoom) && gameState === 'full' && currentRoomPlayers.every(player => player.ready)"
+                                        @click="startGame"
+                                        class="w-32 h-32 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 text-white font-bold text-2xl transition duration-300 ease-in-out flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                                        Start Game
+                                    </button>
+                                </div>
+                                <div v-if="(isReady && currentRoomPlayers.some(player => !player.ready))|| (isReady && currentRoomPlayers.length < 2)"
+                                    class="waiting-animation absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 ">
+                                    <div class="text-center">
+                                        <div class="spinner-container mb-4">
+                                            <div class="spinner"></div>
+                                        </div>
+                                        <p class="text-lg font-semibold text-blue-600">Waiting for another player...</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="w-1/4 bg-gradient-to-b from-blue-50 to-purple-50 p-6 rounded-lg shadow-md">
                             <h3 class="text-2xl font-bold mb-4 text-blue-600">Game Info</h3>
@@ -122,6 +185,10 @@
                                     class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full transition duration-300 ease-in-out">
                                     Submit Guess
                                 </button>
+                                <p v-if="guessResult"
+                                    :class="['mt-2', 'text-center', 'font-bold', guessResult === 'correct' ? 'text-green-500' : 'text-red-500', 'animate__animated', guessResult === 'correct' ? 'animate__bounceIn' : 'animate__shakeX']">
+                                    {{ guessResult === 'correct' ? 'Correct!' : 'Wrong guess!' }}
+                                </p>
                             </div>
                             <button @click="startNewRound" v-if="gameState === 'roundEnd'"
                                 class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full transition duration-300 ease-in-out">

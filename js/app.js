@@ -22,7 +22,21 @@ new Vue({
     timer: 0,
     timerInterval: null,
     scores: {},
-    //showCanvas: false
+    guessResult: null,
+    canvasWidth: 800,
+    canvasHeight: 600,
+    currentColor: "#000000",
+    currentSize: 5,
+    isEraser: false,
+    eraserSize: 20,
+    colorPalette: [
+      "#1A1A1A", // Almost Black
+      "#F44336", // Red
+      "#4CAF50", // Green
+      "#2196F3", // Blue
+      "#FFC107", // Amber
+      "#9C27B0", // Purple
+    ],
   },
   methods: {
     signIn() {
@@ -161,7 +175,7 @@ new Vue({
 
       const drawerUid = this.currentRoomPlayers[randomIndex].uid;
       let scores = {};
-      this.currentRoomPlayers.forEach(player => {
+      this.currentRoomPlayers.forEach((player) => {
         scores[player.uid] = { score: 0, name: player.name };
       });
       roomRef
@@ -171,7 +185,7 @@ new Vue({
           drawerUid: drawerUid,
           timer: 60,
           drawingData: null,
-          scores: scores
+          scores: scores,
         })
         .then(() => {
           //this.initCanvas();
@@ -197,38 +211,111 @@ new Vue({
 
     initCanvas() {
       this.$nextTick(() => {
-        //console.log("initCanvas");
         this.canvas = this.$refs.canvas;
-        //console.log(this.canvas);
         if (this.canvas) {
           this.ctx = this.canvas.getContext("2d");
-          // Update canvas width and height
-          this.canvas.width = 800;
-          this.canvas.height = 600;
-          this.ctx.lineWidth = 2;
-          this.ctx.lineCap = "round";
-          this.ctx.strokeStyle = "#000000";
+          this.resizeCanvas();
+          this.updateBrush();
+          window.addEventListener("resize", this.resizeCanvas);
         }
       });
     },
 
+    updateBrush() {
+      if (!this.ctx) return;
+      this.ctx.lineWidth = this.isEraser ? this.eraserSize : this.currentSize;
+      this.ctx.lineCap = "round";
+      this.ctx.strokeStyle = this.isEraser ? "#FFFFFF" : this.currentColor;
+
+      // Update cursor
+      if (this.isEraser) {
+        this.canvas.style.cursor = this.getEraserCursor();
+      } else {
+        this.canvas.style.cursor = "crosshair";
+      }
+    },
+
+    setColor(color) {
+      this.currentColor = color;
+      this.isEraser = false;
+      this.updateBrush();
+    },
+
+    setEraser() {
+      this.isEraser = !this.isEraser;
+      this.updateBrush();
+    },
+
+    getEraserCursor() {
+      const size = this.eraserSize;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "white";
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2 - 1, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      return `url(${canvas.toDataURL()}) ${size / 2} ${size / 2}, auto`;
+    },
+
+    clearCanvas() {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.saveDrawingData();
+    },
+
+    resizeCanvas() {
+      const container = this.canvas.parentElement;
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      const aspectRatio = this.canvasWidth / this.canvasHeight;
+
+      if (containerWidth / containerHeight > aspectRatio) {
+        this.canvas.height = containerHeight;
+        this.canvas.width = containerHeight * aspectRatio;
+      } else {
+        this.canvas.width = containerWidth;
+        this.canvas.height = containerWidth / aspectRatio;
+      }
+
+      this.loadDrawingData();
+    },
+
     startDrawing(event) {
-      if (!this.isDrawing || this.gameState !== 'playing') return;
-      //console.log("startDrawing");
+      if (!this.isDrawing || this.gameState !== "playing") return;
       this.isDrawingNow = true;
+      this.updateBrush();
       this.ctx.beginPath();
-      this.ctx.moveTo(event.offsetX, event.offsetY);
+      this.draw(event);
     },
 
     draw(event) {
-      if (!this.isDrawing || !this.isDrawingNow || this.gameState !== 'playing') return;
-      this.ctx.lineTo(event.offsetX, event.offsetY);
-      this.ctx.stroke();
+      if (!this.isDrawing || !this.isDrawingNow || this.gameState !== "playing")
+        return;
+      const rect = this.canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      if (this.isEraser) {
+        this.ctx.globalCompositeOperation = "destination-out";
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, this.eraserSize / 2, 0, 2 * Math.PI);
+        this.ctx.fill();
+      } else {
+        this.ctx.globalCompositeOperation = "source-over";
+        this.ctx.lineTo(x, y);
+        this.ctx.stroke();
+      }
       this.saveDrawingData();
     },
 
     stopDrawing() {
-      if (!this.isDrawing || this.gameState !== 'playing') return;
+      if (!this.isDrawing || this.gameState !== "playing") return;
       this.isDrawingNow = false;
       this.ctx.closePath();
       this.saveDrawingData();
@@ -237,10 +324,11 @@ new Vue({
     saveDrawingData() {
       if (!this.currentRoom) return;
       const drawingData = this.canvas.toDataURL();
-      firebase
-        .database()
-        .ref(`rooms/${this.currentRoom}/drawingData`)
-        .set(drawingData);
+      firebase.database().ref(`rooms/${this.currentRoom}/drawingData`).set({
+        data: drawingData,
+        width: this.canvas.width,
+        height: this.canvas.height,
+      });
     },
 
     loadDrawingData() {
@@ -254,9 +342,19 @@ new Vue({
             const img = new Image();
             img.onload = () => {
               this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-              this.ctx.drawImage(img, 0, 0);
+              this.ctx.drawImage(
+                img,
+                0,
+                0,
+                drawingData.width,
+                drawingData.height,
+                0,
+                0,
+                this.canvas.width,
+                this.canvas.height
+              );
             };
-            img.src = drawingData;
+            img.src = drawingData.data;
           }
         });
     },
@@ -271,23 +369,112 @@ new Vue({
           guess: this.guess,
         })
         .then(() => {
-          this.checkGuess({ uid: this.user.uid, guess: this.guess, name: this.user.displayName });
+          this.checkGuess({
+            uid: this.user.uid,
+            guess: this.guess,
+            name: this.user.displayName,
+          });
           this.guess = "";
         });
     },
 
     checkGuess(guessData) {
       if (guessData.guess.toLowerCase() === this.currentWord.toLowerCase()) {
+        this.guessResult = "correct";
         const roomRef = firebase.database().ref(`rooms/${this.currentRoom}`);
         roomRef
           .update({ status: "roundEnd", winner: guessData.uid })
           .then(() => {
             this.updateScores(guessData.uid, guessData.name);
             this.endRound();
+            // Remove this line as it's no longer needed
+            // this.celebrateWinner();
           });
       } else {
-        alert("Wrong guess!");
+        this.guessResult = "wrong";
       }
+      setTimeout(() => {
+        this.guessResult = null;
+      }, 2000);
+    },
+
+    celebrateWinner(winnerUid) {
+      // Intense confetti burst
+      const count = 200;
+      const defaults = {
+        origin: { y: 0.7 },
+        spread: 360,
+        ticks: 50,
+        gravity: 0,
+        decay: 0.94,
+        startVelocity: 30,
+        shapes: ["star"],
+        colors: ["FFE400", "FFBD00", "E89400", "FFCA6C", "FDFFB8"],
+      };
+
+      function fire(particleRatio, opts) {
+        confetti(
+          Object.assign({}, defaults, opts, {
+            particleCount: Math.floor(count * particleRatio),
+          })
+        );
+      }
+
+      fire(0.25, {
+        spread: 26,
+        startVelocity: 55,
+      });
+      fire(0.2, {
+        spread: 60,
+      });
+      fire(0.35, {
+        spread: 100,
+        decay: 0.91,
+        scalar: 0.8,
+      });
+      fire(0.1, {
+        spread: 120,
+        startVelocity: 25,
+        decay: 0.92,
+        scalar: 1.2,
+      });
+      fire(0.1, {
+        spread: 120,
+        startVelocity: 45,
+      });
+
+      // Show winner announcement
+      this.showWinnerAnnouncement(winnerUid);
+    },
+
+    showWinnerAnnouncement(winnerUid) {
+      const winnerName = this.scores[winnerUid].name;
+      const announcement = document.createElement("div");
+      announcement.innerHTML = `<h2 class="text-4xl font-bold text-yellow-400">${winnerName} wins!</h2>`;
+      announcement.className =
+        "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-75 p-8 rounded-xl animate__animated animate__zoomIn";
+      document.body.appendChild(announcement);
+
+      setTimeout(() => {
+        announcement.classList.remove("animate__zoomIn");
+        announcement.classList.add("animate__zoomOut");
+        setTimeout(() => {
+          document.body.removeChild(announcement);
+        }, 1000);
+      }, 3000);
+    },
+
+    listenForWinner() {
+      if (!this.currentRoom) return;
+      const roomRef = firebase.database().ref(`rooms/${this.currentRoom}`);
+      roomRef.child("winner").on("value", (snapshot) => {
+        const winnerUid = snapshot.val();
+        if (winnerUid && this.gameState === "roundEnd") {
+          this.celebrateWinner(winnerUid);
+          // Reset the winner after celebration
+          roomRef.child("winner").set(null);
+        }
+      });
     },
 
     timerFunction() {
@@ -316,7 +503,8 @@ new Vue({
         .ref(`rooms/${this.currentRoom}/scores`);
       roomRef.transaction((scores) => {
         if (!scores) scores = {};
-        if (!scores[winnerUid]) scores[winnerUid] = { score: 0, name: winnerName };
+        if (!scores[winnerUid])
+          scores[winnerUid] = { score: 0, name: winnerName };
         scores[winnerUid].score++;
         return scores;
       });
@@ -332,8 +520,7 @@ new Vue({
         drawerUid: newDrawerUid,
         drawingData: null,
         timer: 60,
-
-
+        winner: null, // Reset winner at the start of a new round
       });
       //this.startTimer();
     },
@@ -346,6 +533,30 @@ new Vue({
         this.rooms.find((r) => r.id === this.currentRoom).drawerUid
       );
       return players[(currentDrawerIndex + 1) % players.length];
+    },
+
+    listenToPlayerChanges(roomId) {
+      const playersRef = firebase.database().ref(`rooms/${roomId}/players`);
+      playersRef.on("value", (snapshot) => {
+        const players = snapshot.val();
+        console.log("Players:", players);
+        if (players) {
+          this.currentRoomPlayers = Object.keys(players).map((uid) => ({
+            uid,
+            name: players[uid].name,
+            ready: players[uid].ready,
+          }));
+          console.log("Players updated:", this.currentRoomPlayers);
+          // You can add additional logic here based on the number of players
+          if (this.currentRoomPlayers.length === 2) {
+            console.log("Room is full");
+            // Add any specific logic for when the room is full
+          }
+        } else {
+          this.currentRoomPlayers = [];
+          console.log("No players in the room");
+        }
+      });
     },
   },
   created() {
@@ -383,18 +594,22 @@ new Vue({
                     ready: currentRoomData.players[uid].ready,
                   })) || [];
                 this.scores = currentRoomData.scores || {};
-                if (currentRoomData.status === 'playing') {
+                if (currentRoomData.status === "playing") {
                   this.timer = currentRoomData.timer;
                   this.$nextTick(() => {
-                    if (!this.timerInterval && currentRoomData.drawerUid === this.user.uid) {
+                    if (
+                      !this.timerInterval &&
+                      currentRoomData.drawerUid === this.user.uid
+                    ) {
                       console.log("timerInterval");
                       //this.timer = currentRoomData.timer;
-                      this.timerInterval = setInterval(this.timerFunction, 1000);
+                      this.timerInterval = setInterval(
+                        this.timerFunction,
+                        1000
+                      );
                     }
-
                   });
                 }
-
 
                 // if (this.gameState === 'playing' && this.isDrawing) {
                 //     this.startTimer();
@@ -419,6 +634,8 @@ new Vue({
                     img.src = drawingData;
                   }
                 });
+
+                this.listenForWinner(); // Add this line to start listening for winner updates
               }
             }
           });
@@ -462,18 +679,25 @@ new Vue({
           this.$refs.canvas
             ?.getContext("2d")
             ?.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        }
 
+          // Reset winner when a new round starts
+          if (this.currentRoom) {
+            firebase
+              .database()
+              .ref(`rooms/${this.currentRoom}/winner`)
+              .set(null);
+          }
+        }
       }
     },
-    // timer(newTimer, oldTimer) {
-    //   if (newTimer && newTimer !== oldTimer) {
-    //     if (!this.isDrawing) {
-    //       if (newTimer === 0) {
-    //         this.endRound();
-    //       }
-    //     }
-    //   }
-    // },
+    currentColor() {
+      this.updateBrush();
+    },
+    currentSize() {
+      this.updateBrush();
+    },
+  },
+  beforeDestroy() {
+    window.removeEventListener("resize", this.resizeCanvas);
   },
 });
