@@ -217,6 +217,22 @@ new Vue({
           this.resizeCanvas();
           this.updateBrush();
           window.addEventListener("resize", this.resizeCanvas);
+          this.canvas.addEventListener("mousedown", this.startDrawing);
+          this.canvas.addEventListener("mousemove", this.draw);
+          this.canvas.addEventListener("mouseup", this.stopDrawing);
+          this.canvas.addEventListener("mouseout", this.stopDrawing);
+          // Add touch event listeners
+          this.canvas.addEventListener("touchstart", this.handleStart);
+          this.canvas.addEventListener("touchmove", this.handleMove);
+          this.canvas.addEventListener("touchend", this.handleEnd);
+          // Prevent default scrolling behavior
+          this.canvas.addEventListener(
+            "touchmove",
+            function (e) {
+              e.preventDefault();
+            },
+            { passive: false }
+          );
         }
       });
     },
@@ -286,20 +302,20 @@ new Vue({
       this.loadDrawingData();
     },
 
+    // Update these methods to handle both mouse and touch events
     startDrawing(event) {
       if (!this.isDrawing || this.gameState !== "playing") return;
       this.isDrawingNow = true;
       this.updateBrush();
       this.ctx.beginPath();
-      this.draw(event);
+      const { x, y } = this.getEventCoordinates(event);
+      this.ctx.moveTo(x, y);
     },
 
     draw(event) {
       if (!this.isDrawing || !this.isDrawingNow || this.gameState !== "playing")
         return;
-      const rect = this.canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
+      const { x, y } = this.getEventCoordinates(event);
 
       if (this.isEraser) {
         this.ctx.globalCompositeOperation = "destination-out";
@@ -319,6 +335,30 @@ new Vue({
       this.isDrawingNow = false;
       this.ctx.closePath();
       this.saveDrawingData();
+    },
+
+    // Add these new methods for touch events
+    handleStart(event) {
+      event.preventDefault();
+      this.startDrawing(event.touches[0]);
+    },
+
+    handleMove(event) {
+      event.preventDefault();
+      this.draw(event.touches[0]);
+    },
+
+    handleEnd(event) {
+      event.preventDefault();
+      this.stopDrawing();
+    },
+
+    // Helper method to get coordinates for both mouse and touch events
+    getEventCoordinates(event) {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = (event.clientX || event.touches[0].clientX) - rect.left;
+      const y = (event.clientY || event.touches[0].clientY) - rect.top;
+      return { x, y };
     },
 
     saveDrawingData() {
@@ -557,6 +597,29 @@ new Vue({
           console.log("No players in the room");
         }
       });
+    },
+
+    handleStart(e) {
+      let touch = e.touches[0];
+      this.startDrawing(touch.clientX, touch.clientY);
+    },
+
+    handleMove(e) {
+      let touch = e.touches[0];
+      this.draw(touch.clientX, touch.clientY);
+    },
+
+    handleEnd() {
+      this.stopDrawing();
+    },
+
+    getCanvasCoordinates(e) {
+      let rect = this.canvas.getBoundingClientRect();
+      let touch = e.touches[0];
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top,
+      };
     },
   },
   created() {
