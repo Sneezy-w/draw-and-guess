@@ -2,237 +2,99 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draw and Guess</title>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="css/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Draw and Guess</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+    }
 
-        .spinner-container {
-            display: flex;
-            justify-content: center;
-        }
+    .spinner-container {
+      display: flex;
+      justify-content: center;
+    }
 
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
 
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
 
-            100% {
-                transform: rotate(360deg);
-            }
-        }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
 
-        .canvas-container {
-            touch-action: none;
-        }
+    .canvas-container {
+      touch-action: none;
+    }
 
-        @media (max-width: 768px) {
-            .drawing-tools {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
+    @media (max-width: 768px) {
+      .drawing-tools {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
 
-            .drawing-tools>* {
-                margin-bottom: 0.5rem;
-            }
-        }
-    </style>
+      .drawing-tools>* {
+        margin-bottom: 0.5rem;
+      }
+    }
+  </style>
 </head>
 
 <body class="bg-gradient-to-br from-blue-100 to-purple-100 min-h-screen">
-    <div id="app" class="container mx-auto p-4 max-w-7xl">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-bold text-blue-600 mb-2">Draw and Guess</h1>
-        </header>
+  <div id="app" class="container mx-auto p-4 max-w-7xl">
+    <header class="text-center mb-8">
+      <h1 class="text-4xl md:text-5xl font-bold text-blue-600 mb-2">Draw and Guess</h1>
+    </header>
 
-        <main class="bg-white rounded-lg shadow-lg p-4 md:p-8">
-            <div v-if="!user" class="text-center">
-                <button @click="signIn"
-                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Sign in with Google
-                </button>
+    <main class="bg-white rounded-lg shadow-lg p-4 md:p-8">
+      <div>
+        <auth-component @user-changed="onUserChanged"></auth-component>
+        <room-list-component v-if="user && !currentRoom" @room-joined="onRoomJoined" :user="user"></room-list-component>
+        <div v-if="currentRoom && currentRoomData" class="space-y-8">
+          <room-component :room="currentRoomData" :user="user" @leave-room="onLeaveRoom"></room-component>
+          <div class="flex flex-col md:flex-row md:space-x-6">
+            <div class="w-full md:w-3/4 mb-6 md:mb-0">
+              <div class="canvas-container relative" style="width: 100%;">
+                <drawing-tools-component v-if="isDrawing" @color-changed="onColorChanged" @size-changed="onSizeChanged"
+                  @eraser-changed="onEraserChanged" @clear-canvas="onClearCanvas"></drawing-tools-component>
+                <canvas-component :current-room="currentRoom" :game-state="gameState" :is-drawing="isDrawing"
+                  :is-eraser="isEraser" :current-color="currentColor" :current-size="currentSize"
+                  ref="canvasComponent"></canvas-component>
+                <ready-button-component v-if="gameState === 'waiting'" :is-ready="isReady" :game-state="gameState"
+                  :current-room-players="currentRoomPlayers" @toggle-ready="onToggleReady"
+                  @start-game="onStartGame"></ready-button-component>
+              </div>
             </div>
-
-            <div v-else>
-                <div class="flex flex-col md:flex-row justify-between items-center mb-6">
-                    <p class="text-lg mb-2 md:mb-0">Welcome, <span class="font-semibold">{{ user.displayName }}</span>!
-                    </p>
-                    <button @click="signOut"
-                        class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
-                        Sign out
-                    </button>
-                </div>
-
-                <div v-if="!currentRoom" class="space-y-8">
-                    <div class="bg-gray-50 p-4 md:p-6 rounded-lg">
-                        <h2 class="text-xl md:text-2xl font-bold mb-4">Create a Room</h2>
-                        <form @submit.prevent="createRoom" class="flex flex-col md:flex-row">
-                            <input v-model="newRoomName" type="text" placeholder="Room name"
-                                class="border rounded-lg md:rounded-r-none p-2 w-full md:w-auto mb-2 md:mb-0">
-                            <button type="submit"
-                                class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg md:rounded-l-none transition duration-300 ease-in-out">
-                                Create Room
-                            </button>
-                        </form>
-                    </div>
-
-                    <div class="bg-gray-50 p-4 md:p-6 rounded-lg">
-                        <h2 class="text-xl md:text-2xl font-bold mb-4">Available Rooms</h2>
-                        <ul class="space-y-2">
-                            <li v-for="room in rooms" :key="room.id"
-                                class="bg-white p-4 rounded-lg flex flex-col md:flex-row justify-between items-center shadow-sm">
-                                <span class="font-medium mb-2 md:mb-0">{{ room.name }} ({{ room.players ?
-                                    Object.keys(room.players).length : 0 }}/2)</span>
-                                <button @click="joinRoom(room.id)" :disabled="room.status === 'full'"
-                                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out w-full md:w-auto"
-                                    :class="{ 'opacity-50 cursor-not-allowed': room.status === 'full' }">
-                                    Join
-                                </button>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div v-if="currentRoom" class="space-y-8">
-                    <div class="bg-gradient-to-r from-blue-50 to-purple-50 p-4 md:p-6 rounded-lg shadow-md">
-                        <div class="flex flex-col md:flex-row justify-between items-center">
-                            <div class="mb-4 md:mb-0">
-                                <h2 class="text-xl md:text-2xl font-bold mb-2">Current Room</h2>
-                                <p v-if="currentRoom && rooms.find(r => r.id === currentRoom)">You are in room: <span
-                                        class="font-semibold">{{ rooms.find(r => r.id === currentRoom).name }}</span>
-                                </p>
-                            </div>
-                            <div>
-                                <button @click="leaveRoom"
-                                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
-                                    Leave Room
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex flex-col md:flex-row md:space-x-6">
-                        <div class="w-full md:w-3/4 mb-6 md:mb-0">
-                            <div class="canvas-container relative" style="width: 100%;">
-                                <div class="drawing-tools flex flex-wrap space-x-2 mb-2">
-                                    <div class="color-palette flex flex-wrap space-x-2 mb-2">
-                                        <div v-for="color in colorPalette" :key="color" @click="setColor(color)"
-                                            :style="{ backgroundColor: color }"
-                                            class="w-8 h-8 rounded-full cursor-pointer border-2 transition-all duration-200 mb-2"
-                                            :class="{ 'border-gray-400 scale-110': currentColor === color, 'border-transparent': currentColor !== color }">
-                                        </div>
-                                        <input type="color" v-model="currentColor" @input="setColor(currentColor)"
-                                            class="w-8 h-8 rounded-full cursor-pointer mb-2">
-                                    </div>
-                                    <select v-model="currentSize" class="border rounded p-1 mb-2">
-                                        <option value="2">Small</option>
-                                        <option value="5">Medium</option>
-                                        <option value="10">Large</option>
-                                    </select>
-                                    <button @click="setEraser"
-                                        class="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded mb-2">
-                                        Eraser
-                                    </button>
-                                    <button @click="clearCanvas"
-                                        class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded mb-2">
-                                        Clear
-                                    </button>
-                                </div>
-                                <div class="canvas-container relative w-full" style="padding-bottom: 75%;">
-                                    <canvas ref="canvas" @mousedown="startDrawing" @mousemove="draw"
-                                        @mouseup="stopDrawing" @mouseleave="stopDrawing"
-                                        @touchstart.prevent="startDrawing" @touchmove.prevent="draw"
-                                        @touchend.prevent="stopDrawing"
-                                        v-show="currentRoom && (gameState === 'playing' || gameState === 'roundEnd')"
-                                        class="border-4 border-blue-300 rounded-lg absolute top-0 left-0 w-full h-full shadow-lg">
-                                    </canvas>
-                                </div>
-                                <div
-                                    class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                                    <button v-if="(gameState === 'waiting' || gameState === 'full') && !isReady"
-                                        @click="toggleReady"
-                                        class="w-32 h-32 rounded-full bg-gradient-to-r from-green-400 to-green-600 text-white font-bold text-2xl transition duration-300 ease-in-out mb-6 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300">
-                                        Ready
-                                    </button>
-                                    <button
-                                        v-if="isReady && currentRoom && rooms.find(r => r.id === currentRoom) && gameState === 'full' && currentRoomPlayers.every(player => player.ready)"
-                                        @click="startGame"
-                                        class="w-32 h-32 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 text-white font-bold text-2xl transition duration-300 ease-in-out flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
-                                        Start Game
-                                    </button>
-                                </div>
-                                <div v-if="(isReady && currentRoomPlayers.some(player => !player.ready))|| (isReady && currentRoomPlayers.length < 2)"
-                                    class="waiting-animation absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 ">
-                                    <div class="text-center">
-                                        <div class="spinner-container mb-4">
-                                            <div class="spinner"></div>
-                                        </div>
-                                        <p class="text-lg font-semibold text-blue-600">Waiting for another player...</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div
-                            class="w-full md:w-1/4 bg-gradient-to-b from-blue-50 to-purple-50 p-4 md:p-6 rounded-lg shadow-md">
-                            <h3 class="text-xl md:text-2xl font-bold mb-4 text-blue-600">Game Info</h3>
-                            <div v-if="gameState === 'playing' || gameState === 'roundEnd'">
-                                <p class="mb-2">Time remaining: {{ timer }} seconds</p>
-                                <p v-if="isDrawing" class="mb-2">Word to draw: {{ currentWord }}</p>
-                            </div>
-                            <div v-if="!isDrawing && gameState === 'playing'" class="mt-4">
-                                <p class="mb-2">Guess the word:</p>
-                                <input v-model="guess" @keyup.enter="submitGuess" type="text"
-                                    class="border rounded-lg p-2 w-full mb-2">
-                                <button @click="submitGuess"
-                                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full transition duration-300 ease-in-out">
-                                    Submit Guess
-                                </button>
-                                <p v-if="guessResult"
-                                    :class="['mt-2', 'text-center', 'font-bold', guessResult === 'correct' ? 'text-green-500' : 'text-red-500', 'animate__animated', guessResult === 'correct' ? 'animate__bounceIn' : 'animate__shakeX']">
-                                    {{ guessResult === 'correct' ? 'Correct!' : 'Wrong guess!' }}
-                                </p>
-                            </div>
-                            <button @click="startNewRound" v-if="gameState === 'roundEnd'"
-                                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full transition duration-300 ease-in-out mt-4">
-                                Start New Round
-                            </button>
-                            <div class="mt-6">
-                                <h4 class="text-lg md:text-xl font-bold mb-3 text-purple-600">Scores:</h4>
-                                <ul class="space-y-2">
-                                    <li v-for="(score, uid) in scores" :key="uid"
-                                        class="flex justify-between items-center bg-white p-2 rounded-lg shadow-sm">
-                                        <span>{{ score.name }}</span>
-                                        <span class="font-bold text-blue-600">{{ score.score }}</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-    <script src="js/app.js" type="module"></script>
+            <game-info-component ref="gameInfoComponent" :game-state="gameState" :timer="timer"
+              :current-word="currentWord" :current-room="currentRoom" :is-drawing="isDrawing" :scores="scores"
+              :user="user" :winner="winner" :current-room-players="currentRoomPlayers" :generate-word="generateWord"
+              :current-room-data="currentRoomData"></game-info-component>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="js/app.js" type="module"></script>
 </body>
 
 </html>
