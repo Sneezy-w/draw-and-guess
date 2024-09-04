@@ -1,12 +1,3 @@
-firebase.initializeApp(firebaseConfig);
-
-async function loadTemplate(path) {
-  const templateResponse = await fetch(`./components/${path}.vue`)
-
-  const template = await templateResponse.text();
-  return template;
-}
-
 import firebaseConfig from "./firebaseConfig.js";
 import Auth from "../components/Auth/auth.js";
 import RoomList from "../components/RoomList/roomList.js";
@@ -15,6 +6,15 @@ import DrawingTools from "../components/DrawingTools/drawingTools.js";
 import Canvas from "../components/Canvas/canvas.js";
 import ReadyButton from "../components/ReadyButton/readyButton.js";
 import GameInfo from "../components/GameInfo/GameInfo.js";
+
+firebase.initializeApp(firebaseConfig);
+
+async function loadTemplate(path) {
+  const templateResponse = await fetch(`./components/${path}.vue`)
+
+  const template = await templateResponse.text();
+  return template;
+}
 
 Vue.component('auth-component', {
   template: await loadTemplate('Auth/auth'),
@@ -86,12 +86,14 @@ new Vue({
     },
     onUserChanged(user) {
       this.user = user;
+      console.log("user changed", user);
     },
     onRoomJoined(roomId) {
       this.currentRoom = roomId;
     },
     onLeaveRoom() {
       this.$refs?.gameInfoComponent?.clearTimer();
+      console.log("currentRoom", this.currentRoom);
       this.currentRoom = null;
     },
     onToggleReady() {

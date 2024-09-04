@@ -75,8 +75,9 @@
           <div class="flex flex-col md:flex-row md:space-x-6">
             <div class="w-full md:w-3/4 mb-6 md:mb-0">
               <div class="canvas-container relative" style="width: 100%;">
-                <drawing-tools-component v-if="isDrawing" @color-changed="onColorChanged" @size-changed="onSizeChanged"
-                  @eraser-changed="onEraserChanged" @clear-canvas="onClearCanvas"></drawing-tools-component>
+                <drawing-tools-component v-if="isDrawing && gameState === 'playing'" @color-changed="onColorChanged"
+                  @size-changed="onSizeChanged" @eraser-changed="onEraserChanged"
+                  @clear-canvas="onClearCanvas"></drawing-tools-component>
                 <canvas-component :current-room="currentRoom" :game-state="gameState" :is-drawing="isDrawing"
                   :is-eraser="isEraser" :current-color="currentColor" :current-size="currentSize"
                   ref="canvasComponent"></canvas-component>

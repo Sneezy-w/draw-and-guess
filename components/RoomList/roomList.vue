@@ -18,9 +18,9 @@
 				class="bg-white p-4 rounded-lg flex flex-col md:flex-row justify-between items-center shadow-sm">
 				<span class="font-medium mb-2 md:mb-0">{{ room.name }} ({{ room.players ?
 					Object.keys(room.players).length : 0 }}/2)</span>
-				<button @click="joinRoom(room.id)" :disabled="room.status === 'full'"
+				<button @click="joinRoom(room.id)" :disabled="Object.keys(room.players).length >= 2"
 					class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out w-full md:w-auto"
-					:class="{ 'opacity-50 cursor-not-allowed': room.status === 'full' }">
+					:class="{ 'opacity-50 cursor-not-allowed': Object.keys(room.players).length >= 2 }">
 					Join
 				</button>
 			</li>
