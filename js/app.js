@@ -91,6 +91,7 @@ new Vue({
       this.currentRoom = roomId;
     },
     onLeaveRoom() {
+      this.$refs?.gameInfoComponent?.clearTimer();
       this.currentRoom = null;
     },
     onToggleReady() {
